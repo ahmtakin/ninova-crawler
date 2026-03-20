@@ -6,6 +6,7 @@
  *   pages        — Fetched page content and extracted data
  *   word_index   — Inverted index: word → page URL + frequency
  *   crawl_queue  — Persistent URL queue for resumability
+ *   crawl_logs   — Real-time crawl job logs (expandable in UI)
  */
 
 const COLLECTIONS = {
@@ -13,6 +14,7 @@ const COLLECTIONS = {
   PAGES: 'pages',
   WORD_INDEX: 'word_index',
   CRAWL_QUEUE: 'crawl_queue',
+  CRAWL_LOGS: 'crawl_logs',
 };
 
 /**
@@ -47,6 +49,12 @@ async function ensureIndexes(db) {
     await crawlQueue.createIndex({ crawlJobId: 1, status: 1 });
     await crawlQueue.createIndex({ crawlJobId: 1, url: 1 }, { unique: true });
     await crawlQueue.createIndex({ status: 1, createdAt: 1 });
+
+    // Crawl logs collection
+    const crawlLogs = db.collection(COLLECTIONS.CRAWL_LOGS);
+    await crawlLogs.createIndex({ crawlJobId: 1, timestamp: -1 });
+    await crawlLogs.createIndex({ crawlJobId: 1, level: 1, timestamp: -1 });
+    await crawlLogs.createIndex({ timestamp: 1 }, { expireAfterSeconds: 604800 }); // 7 day TTL
 
     const logger = require('../utils/logger');
     logger.info('All MongoDB indexes created successfully');
