@@ -21,6 +21,7 @@ const { RateLimiter, QueueDepthMonitor } = require('./backpressure');
 const UrlQueue = require('./urlQueue');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { createJobLogger } = require('./jobLogger');
 
 /** Map of active crawl loops: jobId → { running: boolean, stopRequested: boolean } */
 const activeJobs = new Map();
@@ -80,6 +81,9 @@ async function startCrawl(origin, maxDepth, jobConfig = {}) {
     const result = await db.collection(COLLECTIONS.CRAWL_JOBS).insertOne(jobDoc);
     const jobId = result.insertedId;
 
+    const jobLogger = createJobLogger(jobId);
+    await jobLogger.info('Crawl job started', { origin: normalizedOrigin, maxDepth: depth });
+
     // Create URL queue and enqueue origin
     const urlQueue = new UrlQueue(db, cacheRedis, jobId);
     await urlQueue.enqueue(normalizedOrigin, 0);
@@ -94,8 +98,9 @@ async function startCrawl(origin, maxDepth, jobConfig = {}) {
     activeJobs.set(jobId.toString(), { running: true, stopRequested: false });
 
     // Start crawl loop in background (fire and forget)
-    crawlLoop(jobId, urlQueue, depth, jobDoc.config).catch(err => {
+    crawlLoop(jobId, urlQueue, depth, jobDoc.config, jobLogger).catch(err => {
       logger.error('Crawl loop error', { jobId: jobId.toString(), error: err.message });
+      jobLogger.error('Crawl loop error', { error: err.message });
     });
 
     logger.info('Crawl job started', { jobId: jobId.toString(), origin: normalizedOrigin, depth });
@@ -116,8 +121,13 @@ async function startCrawl(origin, maxDepth, jobConfig = {}) {
  * @param {UrlQueue} urlQueue
  * @param {number} maxDepth
  * @param {object} jobConfig
+ * @param {object} jobLogger
  */
-async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig) {
+async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig, jobLogger = null) {
+  // If no jobLogger provided, create one
+  if (!jobLogger) {
+    jobLogger = createJobLogger(jobId);
+  }
   const db = getDb();
   const jobsCollection = db.collection(COLLECTIONS.CRAWL_JOBS);
   const pagesCollection = db.collection(COLLECTIONS.PAGES);
@@ -160,6 +170,14 @@ async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig) {
       const queueStats = await urlQueue.getStats();
       const depthCheck = queueMonitor.check(queueStats.pending + queueStats.processing);
 
+      if (depthCheck.isOverLimit) {
+        await jobLogger.warn('Back pressure triggered - queue depth high', {
+          queueDepth: depthCheck.currentDepth,
+          maxDepth: depthCheck.maxDepth,
+          utilizationPercent: depthCheck.utilizationPercent
+        });
+      }
+
       // Update job with latest stats
       await jobsCollection.updateOne(
         { _id: jobId },
@@ -174,6 +192,8 @@ async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig) {
 
       // If no pending URLs, mark as completed
       if (queueStats.pending === 0 && queueStats.processing === 0) {
+        const job = await jobsCollection.findOne({ _id: jobId });
+
         await jobsCollection.updateOne(
           { _id: jobId },
           {
@@ -185,6 +205,11 @@ async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig) {
             }
           }
         );
+
+        await jobLogger.info('Crawl completed', {
+          urlsProcessed: queueStats.done,
+          durationMs: Date.now() - (job?.stats?.startedAt?.getTime() || Date.now())
+        });
 
         // Clean up visited set
         await urlQueue.cleanup();
@@ -222,6 +247,8 @@ async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig) {
             // Fetch page
             const pageData = await fetchPage(item.url);
 
+            await jobLogger.info('Fetched page', { url: item.url, statusCode: pageData.statusCode, depth: item.depth });
+
             // Parse content
             const links = extractLinks(pageData.body, item.url);
             const title = extractTitle(pageData.body);
@@ -253,6 +280,8 @@ async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig) {
               textContent: text
             });
 
+            await jobLogger.info('Indexed page', { url: item.url, wordCount: text.split(/\s+/).length, linksFound: links.length });
+
             // Enqueue new links if not at max depth
             if (item.depth < maxDepth) {
               for (const link of links) {
@@ -266,6 +295,7 @@ async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig) {
             return { success: true };
 
           } catch (error) {
+            await jobLogger.error('Failed to fetch page', { url: item.url, error: error.message });
             logger.warn('Failed to process URL', { url: item.url, error: error.message });
             await urlQueue.markFailed(item._id, error.message);
             return { success: false, error: error.message };
