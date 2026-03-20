@@ -5,6 +5,7 @@
 const express = require('express');
 const indexController = require('./indexController');
 const searchController = require('./searchController');
+const logsRouter = require('./logsController');
 const crawlManager = require('../crawler/crawlManager');
 const logger = require('../utils/logger');
 
@@ -25,6 +26,9 @@ router.delete('/index/:id', indexController.cancelJob);
 
 // ── Search endpoint ──────────────────────────────────
 router.get('/search', searchController.searchPages);
+
+// ── Logs endpoint ────────────────────────────────────
+router.use('/logs', logsRouter);
 
 // ── SSE Status Stream ────────────────────────────────
 // Pushes system status to the dashboard every 2 seconds.
