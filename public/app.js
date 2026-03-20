@@ -130,11 +130,8 @@ async function fetchJobLogs(jobId) {
     const existingIds = new Set(jobLogState.logs.map(l => l._id));
     const newLogs = data.logs.filter(l => !existingIds.has(l._id));
     jobLogState.logs = [...newLogs.reverse(), ...jobLogState.logs];
-
-    return data.logs;
   } catch (error) {
     console.error('Error fetching logs:', error);
-    return [];
   }
 }
 
@@ -162,10 +159,8 @@ function startLogPoller(jobId) {
   stopLogPoller(jobId); // Clear any existing
 
   const intervalId = setInterval(async () => {
-    const hasNewLogs = await fetchJobLogs(jobId);
-    if (hasNewLogs.length > 0) {
-      renderJobs(currentJobs);
-    }
+    await fetchJobLogs(jobId);
+    renderJobs(currentJobs);
   }, logPollingInterval);
 
   logPollers.set(jobId, intervalId);
@@ -257,7 +252,7 @@ function buildJobCard(job) {
         <div class="progress-fill ${showBackPressureWarning ? 'throttled' : ''}" style="width: ${progress}%"></div>
       </div>
 
-      ${showBackPressureWarning ? `<div class="backpressure-warning">⚠️ Queue depth: ${formatNumber(urlsQueued)} / ${formatNumber(config.maxQueueDepth)}</div>` : ''}
+      ${showBackPressureWarning ? `<div class="backpressure-warning">Queue depth at capacity: ${formatNumber(urlsQueued)} / ${formatNumber(config.maxQueueDepth)}</div>` : ''}
 
       <div class="job-stats">
         <div class="stat">
@@ -285,7 +280,7 @@ function buildJobCard(job) {
       <div class="job-actions">
         ${actionButtons}
         <button type="button" data-log-toggle="${jobId}" class="secondary" title="Toggle logs">
-          📋 Logs ${errorCount > 0 ? `(${errorCount} errors)` : ''}
+          Logs ${errorCount > 0 ? `(${errorCount} errors)` : ''}
         </button>
       </div>
 
@@ -294,7 +289,7 @@ function buildJobCard(job) {
           <div class="logs-header">
             <span>Activity Log</span>
             <button type="button" data-autoscroll-toggle="${jobId}" class="log-toggle-btn" title="Toggle auto-scroll">
-              ${logState.autoScroll ? '🔄 Auto-scroll: On' : '⏸️ Auto-scroll: Off'}
+              ${logState.autoScroll ? 'Auto-scroll: On' : 'Auto-scroll: Off'}
             </button>
           </div>
           <div class="logs-container" ${logState.autoScroll ? 'data-auto-scroll="true"' : ''}>
