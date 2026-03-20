@@ -12,6 +12,9 @@
 // ── State ────────────────────────────────────────────
 let eventSource = null;
 let currentJobs = [];
+const jobLogs = new Map(); // jobId -> { logs: [], expanded: false, autoScroll: true }
+const logPollingInterval = 2000; // Poll every 2 seconds when expanded
+const logPollers = new Map(); // jobId -> interval ID
 
 // ── DOM References ───────────────────────────────────
 const crawlForm = document.getElementById('crawl-form');
@@ -104,6 +107,101 @@ function renderJobs(jobs) {
   }
 
   jobsContainer.innerHTML = html;
+
+  // Auto-scroll expanded log containers
+  document.querySelectorAll('.logs-container[data-auto-scroll="true"]').forEach(container => {
+    container.scrollTop = container.scrollHeight;
+  });
+}
+
+// ── Log Viewer Functions ─────────────────────────────
+
+async function fetchJobLogs(jobId) {
+  try {
+    const response = await fetch(`/api/logs/${jobId}?limit=100`);
+    const data = await response.json();
+
+    if (!jobLogs.has(jobId)) {
+      jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true });
+    }
+
+    const jobLogState = jobLogs.get(jobId);
+    // Prepend new logs (since we get newest first)
+    const existingIds = new Set(jobLogState.logs.map(l => l._id));
+    const newLogs = data.logs.filter(l => !existingIds.has(l._id));
+    jobLogState.logs = [...newLogs.reverse(), ...jobLogState.logs];
+
+    return data.logs;
+  } catch (error) {
+    console.error('Error fetching logs:', error);
+    return [];
+  }
+}
+
+function toggleLogs(jobId) {
+  if (!jobLogs.has(jobId)) {
+    jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true });
+  }
+
+  const state = jobLogs.get(jobId);
+  state.expanded = !state.expanded;
+
+  if (state.expanded) {
+    // Start polling
+    fetchJobLogs(jobId).then(() => renderJobs(currentJobs));
+    startLogPoller(jobId);
+  } else {
+    // Stop polling
+    stopLogPoller(jobId);
+  }
+
+  renderJobs(currentJobs);
+}
+
+function startLogPoller(jobId) {
+  stopLogPoller(jobId); // Clear any existing
+
+  const intervalId = setInterval(async () => {
+    const hasNewLogs = await fetchJobLogs(jobId);
+    if (hasNewLogs.length > 0) {
+      renderJobs(currentJobs);
+    }
+  }, logPollingInterval);
+
+  logPollers.set(jobId, intervalId);
+}
+
+function stopLogPoller(jobId) {
+  if (logPollers.has(jobId)) {
+    clearInterval(logPollers.get(jobId));
+    logPollers.delete(jobId);
+  }
+}
+
+function toggleAutoScroll(jobId) {
+  if (!jobLogs.has(jobId)) {
+    jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true });
+  }
+
+  const state = jobLogs.get(jobId);
+  state.autoScroll = !state.autoScroll;
+  renderJobs(currentJobs);
+}
+
+function buildLogEntry(log) {
+  const levelClass = `log-${log.level || 'info'}`;
+  const timestamp = new Date(log.timestamp).toLocaleTimeString();
+  const metaStr = Object.keys(log.meta || {}).length > 0
+    ? `<span class="log-meta">${JSON.stringify(log.meta)}</span>`
+    : '';
+
+  return `
+    <div class="log-entry ${levelClass}">
+      <span class="log-time">${timestamp}</span>
+      <span class="log-message">${escapeHtml(log.message)}</span>
+      ${metaStr}
+    </div>
+  `;
 }
 
 // ── Build a single job card HTML ─────────────────────
@@ -112,6 +210,7 @@ function buildJobCard(job) {
   const statusClass = job.status || 'queued';
   const stats = job.stats || {};
   const config = job.config || {};
+  const jobId = job._id;
 
   const urlsProcessed = stats.urlsProcessed || 0;
   const urlsQueued = stats.urlsQueued || 0;
@@ -124,23 +223,31 @@ function buildJobCard(job) {
   const isPaused = job.status === 'paused';
   const isCompleted = job.status === 'completed';
 
-  // Back pressure calculation
   const queueUtilization = config.maxQueueDepth ? (urlsQueued / config.maxQueueDepth) * 100 : 0;
   const showBackPressureWarning = isRunning && queueUtilization > 80;
 
   let actionButtons = '';
   if (isRunning) {
-    actionButtons = `<button type="button" data-action="pause" data-id="${job._id}" class="secondary">Pause</button>`;
+    actionButtons = `<button type="button" data-action="pause" data-id="${jobId}" class="secondary">Pause</button>`;
   } else if (isPaused) {
-    actionButtons = `<button type="button" data-action="resume" data-id="${job._id}">Resume</button>`;
+    actionButtons = `<button type="button" data-action="resume" data-id="${jobId}">Resume</button>`;
   }
 
   if (!isCompleted) {
-    actionButtons += `<button type="button" data-action="cancel" data-id="${job._id}" class="danger">Cancel</button>`;
+    actionButtons += `<button type="button" data-action="cancel" data-id="${jobId}" class="danger">Cancel</button>`;
   }
 
+  // Get log state for this job
+  const logState = jobLogs.get(jobId) || { logs: [], expanded: false, autoScroll: true };
+  const showLogs = logState.expanded;
+
+  // Count logs by level
+  const errorCount = logState.logs.filter(l => l.level === 'error').length;
+  const warnCount = logState.logs.filter(l => l.level === 'warn').length;
+  const infoCount = logState.logs.filter(l => l.level === 'info').length;
+
   return `
-    <div class="job-card">
+    <div class="job-card" data-job-id="${jobId}">
       <div class="job-header">
         <span class="job-origin">${escapeHtml(job.origin)}</span>
         <span class="job-status ${statusClass}">${job.status || 'queued'}</span>
@@ -177,7 +284,25 @@ function buildJobCard(job) {
 
       <div class="job-actions">
         ${actionButtons}
+        <button type="button" data-log-toggle="${jobId}" class="secondary" title="Toggle logs">
+          📋 Logs ${errorCount > 0 ? `(${errorCount} errors)` : ''}
+        </button>
       </div>
+
+      ${showLogs ? `
+        <div class="job-logs" data-job-logs="${jobId}">
+          <div class="logs-header">
+            <span>Activity Log</span>
+            <button type="button" data-autoscroll-toggle="${jobId}" class="log-toggle-btn" title="Toggle auto-scroll">
+              ${logState.autoScroll ? '🔄 Auto-scroll: On' : '⏸️ Auto-scroll: Off'}
+            </button>
+          </div>
+          <div class="logs-container" ${logState.autoScroll ? 'data-auto-scroll="true"' : ''}>
+            ${logState.logs.length === 0 ? '<div class="log-entry log-info">Waiting for logs...</div>' : ''}
+            ${logState.logs.map(log => buildLogEntry(log)).join('')}
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -289,6 +414,22 @@ function renderSearchResults(data) {
 // ── Job Actions (Pause/Resume/Cancel) ────────────────
 
 document.addEventListener('click', async (e) => {
+  // Handle log toggle
+  const logToggle = e.target.closest('[data-log-toggle]');
+  if (logToggle) {
+    const jobId = logToggle.dataset.logToggle;
+    toggleLogs(jobId);
+    return;
+  }
+
+  // Handle auto-scroll toggle
+  const autoScrollToggle = e.target.closest('[data-autoscroll-toggle]');
+  if (autoScrollToggle) {
+    const jobId = autoScrollToggle.dataset.autoscrollToggle;
+    toggleAutoScroll(jobId);
+    return;
+  }
+
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
 
