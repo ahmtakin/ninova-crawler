@@ -385,6 +385,9 @@ async function getAllJobs() {
 async function pauseJob(jobId) {
   try {
     const db = getDb();
+    const jobLogger = createJobLogger(new ObjectId(jobId));
+    await jobLogger.info('Crawl job paused', { jobId });
+
     await db.collection(COLLECTIONS.CRAWL_JOBS).updateOne(
       { _id: new ObjectId(jobId) },
       { $set: { status: 'paused', updatedAt: new Date() } }
@@ -412,6 +415,9 @@ async function resumeJob(jobId) {
       throw new Error('Job not found');
     }
 
+    const jobLogger = createJobLogger(oid);
+    await jobLogger.info('Crawl job resumed', { origin: job.origin, maxDepth: job.maxDepth });
+
     // Create URL queue
     const urlQueue = new UrlQueue(db, cacheRedis, oid);
 
@@ -435,8 +441,9 @@ async function resumeJob(jobId) {
     activeJobs.set(jobId, { running: true, stopRequested: false });
 
     // Start crawl loop
-    crawlLoop(oid, urlQueue, job.maxDepth, job.config).catch(err => {
+    crawlLoop(oid, urlQueue, job.maxDepth, job.config, jobLogger).catch(err => {
       logger.error('Resumed crawl loop error', { jobId, error: err.message });
+      jobLogger.error('Crawl loop error', { error: err.message });
     });
 
     logger.info('Job resumed', { jobId });
@@ -456,6 +463,9 @@ async function cancelJob(jobId) {
     const db = getDb();
     const cacheRedis = getCacheRedis();
     const oid = new ObjectId(jobId);
+
+    const jobLogger = createJobLogger(oid);
+    await jobLogger.info('Crawl job cancelled', { jobId });
 
     // Mark job as cancelled
     await db.collection(COLLECTIONS.CRAWL_JOBS).updateOne(
@@ -499,6 +509,9 @@ async function resumeInterruptedJobs() {
     for (const job of interruptedJobs) {
       const jobId = job._id.toString();
 
+      const jobLogger = createJobLogger(job._id);
+      await jobLogger.info('Crawl job resumed after restart', { origin: job.origin, maxDepth: job.maxDepth });
+
       // Create URL queue
       const urlQueue = new UrlQueue(db, cacheRedis, job._id);
 
@@ -510,8 +523,9 @@ async function resumeInterruptedJobs() {
       activeJobs.set(jobId, { running: true, stopRequested: false });
 
       // Start crawl loop
-      crawlLoop(job._id, urlQueue, job.maxDepth, job.config).catch(err => {
+      crawlLoop(job._id, urlQueue, job.maxDepth, job.config, jobLogger).catch(err => {
         logger.error('Resumed crawl loop error', { jobId, error: err.message });
+        jobLogger.error('Crawl loop error', { error: err.message });
       });
 
       logger.info('Resumed interrupted job', { jobId, origin: job.origin });
