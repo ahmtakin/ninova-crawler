@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ninova — Web Crawler &amp; Search Engine</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>Ninova</h1>
+    <p class="subtitle">Web Crawler &amp; Search Engine</p>
+    <div id="system-status" class="system-status">
+      <span class="status-dot" id="connection-dot"></span>
+      <span id="connection-text">Connecting...</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Section 1: Start a Crawl ─────────────────── -->
+    <section class="card" id="crawl-section">
+      <h2>Start a Crawl</h2>
+      <form id="crawl-form">
+        <div class="form-row">
+          <div class="form-group" style="flex: 3">
+            <label for="origin-url">Origin URL</label>
+            <input type="url" id="origin-url" name="origin" placeholder="https://example.com" required>
+          </div>
+          <div class="form-group" style="flex: 1">
+            <label for="crawl-depth">Depth (k)</label>
+            <input type="number" id="crawl-depth" name="depth" min="1" max="10" value="2" required>
+          </div>
+        </div>
+
+        <!-- Advanced config (collapsible) -->
+        <details class="advanced-config">
+          <summary>Advanced Configuration</summary>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="max-rps">Max Requests/sec</label>
+              <input type="number" id="max-rps" name="maxRequestsPerSecond" min="1" max="100" value="10">
+            </div>
+            <div class="form-group">
+              <label for="max-concurrent">Max Concurrent</label>
+              <input type="number" id="max-concurrent" name="maxConcurrentFetches" min="1" max="20" value="5">
+            </div>
+            <div class="form-group">
+              <label for="max-queue">Max Queue Depth</label>
+              <input type="number" id="max-queue" name="maxQueueDepth" min="100" max="100000" value="10000">
+            </div>
+          </div>
+        </details>
+
+        <button type="submit" id="crawl-btn">Start Crawl</button>
+      </form>
+      <div id="crawl-feedback" class="feedback hidden"></div>
+    </section>
+
+    <!-- ── Section 2: Active Crawl Jobs ─────────────── -->
+    <section class="card" id="jobs-section">
+      <h2>Crawl Jobs <span id="active-count" class="badge">0</span></h2>
+      <div id="jobs-container">
+        <p class="empty-state">No crawl jobs yet. Start one above.</p>
+      </div>
+    </section>
+
+    <!-- ── Section 3: Search ────────────────────────── -->
+    <section class="card" id="search-section">
+      <h2>Search</h2>
+      <form id="search-form">
+        <div class="form-row">
+          <div class="form-group" style="flex: 3">
+            <input type="text" id="search-query" name="q" placeholder="Enter search query..." required>
+          </div>
+          <button type="submit" id="search-btn">Search</button>
+        </div>
+      </form>
+      <div id="search-info" class="search-info hidden"></div>
+      <div id="search-results">
+        <p class="empty-state">Enter a query to search indexed pages.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Ninova Crawler — Built for ITU AI-Aided Computer Engineering</p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "ninova-crawler",
+  "version": "1.0.0",
+  "description": "Web crawler and search engine with back pressure, live search, and real-time dashboard",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test tests/"
+  },
+  "keywords": ["crawler", "search-engine", "web-crawler", "indexer"],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0",
+    "mongodb": "^6.10.0",
+    "ioredis": "^5.4.1",
+    "bullmq": "^5.13.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
