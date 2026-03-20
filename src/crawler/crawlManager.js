@@ -208,6 +208,7 @@ async function crawlLoop(jobId, urlQueue, maxDepth, jobConfig, jobLogger = null)
 
         await jobLogger.info('Crawl completed', {
           urlsProcessed: queueStats.done,
+          pagesIndexed: job?.stats?.pagesIndexed || 0,
           durationMs: Date.now() - (job?.stats?.startedAt?.getTime() || Date.now())
         });
 
