@@ -20,9 +20,8 @@ Ninova is a web crawler and search engine with two core capabilities:
 |-----------|-----------|
 | Runtime | Node.js (v20+) |
 | Web Framework | Express.js |
-| Primary Database | MongoDB (stores crawl jobs, pages, word index) |
-| Queue & Cache | Redis #1 — Job queue management (BullMQ) |
-| Search Cache | Redis #2 — Search result caching, visited URL dedup |
+| Primary Database | MongoDB (stores crawl jobs, pages, word index, crawl queue) |
+| Cache | Redis — Search result caching, visited URL deduplication |
 | Containerization | Docker + Docker Compose |
 | Frontend | Vanilla HTML/CSS/JS (served by Express static) |
 
@@ -46,10 +45,10 @@ Ninova is a web crawler and search engine with two core capabilities:
 │          │              │               │             │
 │  ┌───────▼──────────────▼───────────────▼─────────┐   │
 │  │              Data Layer                         │   │
-│  │  ┌─────────┐  ┌────────────┐  ┌─────────────┐  │   │
-│  │  │ MongoDB │  │ Redis #1   │  │ Redis #2    │  │   │
-│  │  │ (store) │  │ (queue)    │  │ (cache)     │  │   │
-│  │  └─────────┘  └────────────┘  └─────────────┘  │   │
+│  │  ┌─────────┐  ┌─────────────────────────────┐  │   │
+│  │  │ MongoDB │  │ Redis                       │  │   │
+│  │  │ (store) │  │ (cache + visited sets)      │  │   │
+│  │  └─────────┘  └─────────────────────────────┘  │   │
 │  └─────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
@@ -58,7 +57,7 @@ Ninova is a web crawler and search engine with two core capabilities:
 
 ```
 ninova-crawler/
-├── docker-compose.yml          # MongoDB + 2x Redis + App
+├── docker-compose.yml          # MongoDB + Redis + App
 ├── Dockerfile                  # Node.js app container
 ├── .dockerignore
 ├── package.json
@@ -84,7 +83,7 @@ ninova-crawler/
 │   │   └── searcher.js         # Query parsing, scoring, ranking, result assembly
 │   ├── db/
 │   │   ├── mongo.js            # MongoDB connection + graceful shutdown
-│   │   ├── redis.js            # Two Redis connections (queue + cache)
+│   │   ├── redis.js            # Redis connection (cache + visited sets)
 │   │   └── models.js           # MongoDB collection schemas & indexes
 │   └── utils/
 │       ├── logger.js           # Structured logging utility
@@ -107,7 +106,6 @@ ninova-crawler/
 - Export a frozen config object reading from `process.env` with defaults:
   - `PORT`: 3000
   - `MONGO_URI`: `mongodb://mongo:27017/ninova`
-  - `REDIS_QUEUE_URL`: `redis://redis-queue:6379`
   - `REDIS_CACHE_URL`: `redis://redis-cache:6379`
   - `MAX_QUEUE_DEPTH`: 10000 (back pressure trigger)
   - `MAX_REQUESTS_PER_SECOND`: 10 (rate limit)

@@ -111,7 +111,6 @@ All values configurable via environment variables with sensible defaults.
 |----------|---------|-------------|
 | PORT | 3000 | Server port |
 | MONGO_URI | mongodb://mongo:27017/ninova | MongoDB connection |
-| REDIS_QUEUE_URL | redis://redis-queue:6379 | Redis for job queue |
 | REDIS_CACHE_URL | redis://redis-cache:6379 | Redis for caching |
 | MAX_QUEUE_DEPTH | 10000 | Back pressure queue limit |
 | MAX_REQUESTS_PER_SECOND | 10 | Rate limit |

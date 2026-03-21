@@ -8,8 +8,7 @@ const config = Object.freeze({
 
   // Database
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/ninova',
-  redisQueueUrl: process.env.REDIS_QUEUE_URL || 'redis://localhost:6379',
-  redisCacheUrl: process.env.REDIS_CACHE_URL || 'redis://localhost:6380',
+  redisCacheUrl: process.env.REDIS_CACHE_URL || 'redis://localhost:6379',
 
   // Back pressure
   maxQueueDepth: parseInt(process.env.MAX_QUEUE_DEPTH, 10) || 10000,

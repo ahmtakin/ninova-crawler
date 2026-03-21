@@ -65,8 +65,7 @@ Browser ──► Express Server ──► MongoDB (storage)
                 │                  ├── pages
                 │                  ├── word_index
                 │                  └── crawl_queue
-                ├──► Redis #1 (job queue / BullMQ)
-                └──► Redis #2 (cache / visited sets)
+                └──► Redis (cache / visited sets)
 ```
 
 ### Back Pressure
@@ -108,7 +107,7 @@ Environment variables (set in `docker-compose.yml`):
 - **Runtime**: Node.js 20
 - **Framework**: Express.js
 - **Database**: MongoDB 7
-- **Cache/Queue**: Redis 7 (two instances)
+- **Cache**: Redis 7
 - **Containerization**: Docker + Docker Compose
 - **Frontend**: Vanilla HTML/CSS/JS
 - **HTML Parsing**: Regex-based (no cheerio/jsdom — language-native approach)

@@ -56,7 +56,7 @@ async function start() {
     logger.info('MongoDB connected');
 
     await redis.connect();
-    logger.info('Redis connected (queue + cache)');
+    logger.info('Redis connected');
 
     // Resume any interrupted crawl jobs
     await crawlManager.resumeInterruptedJobs();
