@@ -250,6 +250,8 @@ function buildJobCard(job) {
   const isRunning = job.status === 'running';
   const isPaused = job.status === 'paused';
   const isCompleted = job.status === 'completed';
+  const isCancelled = job.status === 'cancelled';
+  const isFailed = job.status === 'failed';
 
   const queueUtilization = config.maxQueueDepth ? (urlsQueued / config.maxQueueDepth) * 100 : 0;
   const showBackPressureWarning = isRunning && queueUtilization > 80;
@@ -261,7 +263,8 @@ function buildJobCard(job) {
     actionButtons = `<button type="button" data-action="resume" data-id="${jobId}">Resume</button>`;
   }
 
-  if (!isCompleted) {
+  // Only show cancel button for active jobs (not terminal states)
+  if (!isCompleted && !isCancelled && !isFailed) {
     actionButtons += `<button type="button" data-action="cancel" data-id="${jobId}" class="danger">Cancel</button>`;
   }
 
