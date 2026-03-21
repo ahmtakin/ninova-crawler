@@ -12,6 +12,7 @@
 // ── State ────────────────────────────────────────────
 let eventSource = null;
 let currentJobs = [];
+let currentFeature = 'crawler'; // 'crawler' or 'search'
 const jobLogs = new Map(); // jobId -> { logs: [], expanded: false, autoScroll: true }
 const logPollingInterval = 2000; // Poll every 2 seconds when expanded
 const logPollers = new Map(); // jobId -> interval ID
@@ -26,6 +27,12 @@ const searchResults = document.getElementById('search-results');
 const searchInfo = document.getElementById('search-info');
 const connectionDot = document.getElementById('connection-dot');
 const connectionText = document.getElementById('connection-text');
+
+// Feature panel references
+const crawlerCard = document.getElementById('crawler-card');
+const searchCard = document.getElementById('search-card');
+const crawlerContent = document.getElementById('crawler-content');
+const searchContent = document.getElementById('search-content');
 
 // ── SSE Connection ───────────────────────────────────
 
@@ -91,6 +98,32 @@ function updateSystemStatus(system) {
     activeCount.textContent = system.activeJobs;
   }
 }
+
+// ── Feature Panel Switching ──────────────────────────────
+
+function switchFeature(feature) {
+  if (feature === currentFeature) return;
+
+  // Update state
+  currentFeature = feature;
+
+  // Update card states
+  if (feature === 'crawler') {
+    crawlerCard.classList.add('active');
+    searchCard.classList.remove('active');
+    crawlerContent.classList.add('active');
+    searchContent.classList.remove('active');
+  } else {
+    searchCard.classList.add('active');
+    crawlerCard.classList.remove('active');
+    searchContent.classList.add('active');
+    crawlerContent.classList.remove('active');
+  }
+}
+
+// Feature card click handlers
+crawlerCard.addEventListener('click', () => switchFeature('crawler'));
+searchCard.addEventListener('click', () => switchFeature('search'));
 
 // ── Render Jobs ──────────────────────────────────────
 
@@ -482,6 +515,9 @@ function formatNumber(n) {
 }
 
 // ── Initialize ───────────────────────────────────────
+// Set default feature panel
+switchFeature('crawler');
+
 connectSSE();
 
 // Also do an initial fetch of jobs in case SSE takes a moment
