@@ -85,7 +85,7 @@ jobs:
           MONGO_URI: mongodb://localhost:27017/ninova
           REDIS_CACHE_URL: redis://localhost:6379
           NODE_ENV: test
-        run: node --test --test-timeout 300000 tests/config.test.js tests/crawler/crawlManager.test.js tests/crawler/parser.test.js tests/crawler/urlQueue.test.js tests/search/indexer.test.js tests/search/searcher.test.js tests/setup.test.js tests/utils/generateCert.test.js tests/utils/logger.test.js tests/utils/urlUtils.test.js
+        run: node --test --test-timeout 300000 tests/config.test.js tests/parser.test.js tests/urlUtils.test.js tests/crawler/backpressure.test.js tests/crawler/crawlManager.test.js tests/crawler/jobLogger.test.js tests/crawler/urlQueue.test.js tests/search/indexer.test.js tests/search/searcher.test.js tests/api/indexController.test.js tests/api/logsController.test.js tests/api/searchController.test.js tests/db/models.test.js tests/setup.test.js tests/utils/generateCert.test.js tests/utils/logger.test.js
 
       # Upload test results as artifacts if tests fail
       - name: Upload test results on failure
