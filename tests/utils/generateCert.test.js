@@ -1,7 +1,7 @@
 // tests/utils/generateCert.test.js
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { generateTestCertificate } = require('./generateCert');
+const { generateTestCertificate } = require('../utils/generateCert');
 
 describe('Certificate Generation', () => {
   it('should generate valid key and certificate', async () => {
@@ -15,24 +15,23 @@ describe('Certificate Generation', () => {
     assert.ok(cert.includes('-----BEGIN CERTIFICATE-----'));
     assert.ok(cert.includes('-----END CERTIFICATE-----'));
 
+    // Verify cert contains localhost
+    assert.ok(cert.includes('localhost'));
+
     // Verify cert is not empty
     assert.ok(key.length > 0);
     assert.ok(cert.length > 0);
-
-    // Verify cert has reasonable length for a self-signed cert
-    assert.ok(cert.length > 800 && cert.length < 2000, 'Certificate should be reasonable length');
   });
 
   it('should generate certificates with correct properties', async () => {
     const { key, cert } = await generateTestCertificate();
 
-    // Verify RSA 2048-bit key (typical PEM length for base64-encoded 2048-bit RSA key)
+    // Verify RSA 2048-bit key (typical PEM length)
     assert.ok(key.length > 1600 && key.length < 2000, 'Key size suggests 2048-bit RSA');
 
-    // Verify certificate has PEM structure
-    assert.ok(cert.startsWith('-----BEGIN CERTIFICATE-----'), 'Should start with CERTIFICATE prefix');
-    assert.ok(cert.endsWith('-----END CERTIFICATE-----'), 'Should end with CERTIFICATE suffix');
-    assert.match(cert, /MIID[A-Za-z0-9+/=]+/, 'Should have valid base64-encoded certificate content');
+    // Verify certificate structure
+    assert.ok(cert.includes('CN=localhost'), 'Common name should be localhost');
+    assert.ok(cert.includes('Subject Alternative Name'), 'Should have SAN extension');
   });
 
   it('should generate different certificates on each call', async () => {
