@@ -20,6 +20,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     # Service containers for MongoDB and Redis
     # GitHub Actions waits for services to be healthy before starting steps
@@ -73,7 +74,7 @@ jobs:
           MONGO_URI: mongodb://localhost:27017/ninova
           REDIS_CACHE_URL: redis://localhost:6379
           NODE_ENV: test
-        run: npm test
+        run: node --test --timeout 300000 tests/**/*.test.js
 
       # Upload test results as artifacts if tests fail
       - name: Upload test results on failure
