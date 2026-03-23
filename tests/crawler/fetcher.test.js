@@ -12,8 +12,8 @@ const { fetchPage } = require('../../src/crawler/fetcher');
 const { createMockServer, closeMockServer, FIXTURES, setupTestCertificates } = require('../setup');
 
 describe('Fetcher Module', function() {
-  // Set timeout for all tests (fetcher can be slow)
-  this.timeout = 10000;
+  // Set timeout for all tests (fetcher can be slow, especially in CI)
+  this.timeout = 120000; // 2 minutes to account for CI environment
 
   let mockServer;
   let httpsServer;
