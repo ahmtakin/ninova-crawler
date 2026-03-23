@@ -406,8 +406,8 @@ describe('Fetcher Module', function() {
       }
     });
 
-    it('should handle DNS failures gracefully', async () => {
-      // Use a non-existent domain
+    it('should handle DNS failures gracefully', { timeout: 30000 }, async () => {
+      // Use a non-existent domain - add timeout to prevent CI hanging on slow DNS
       await assert.rejects(
         async () => fetchPage('http://this-domain-definitely-does-not-exist-12345.com/'),
         (error) => {

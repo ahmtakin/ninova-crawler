@@ -64,9 +64,20 @@ jobs:
         run: npm ci
 
       # Run linter if configured (optional step)
-      - name: Run linter
-        run: npm run lint || echo "No linter configured, skipping"
+      - name: Check for linter script
+        id: lint-check
+        run: |
+          if npm run lint 2>/dev/null; then
+            echo "Lint script exists, will run"
+          else
+            echo "No lint script configured, skipping"
+          fi
         continue-on-error: true
+
+      # Only run lint if it exists
+      - name: Run linter
+        if: steps.lint-check.outputs == 'Lint script exists, will run'
+        run: npm run lint
 
       # Run tests with service environment variables
       - name: Run tests
