@@ -9,7 +9,7 @@ const http = require('http');
 const https = require('https');
 
 const { fetchPage } = require('../../src/crawler/fetcher');
-const { createMockServer, closeMockServer, FIXTURES } = require('../setup');
+const { createMockServer, closeMockServer, FIXTURES, setupTestCertificates } = require('../setup');
 
 describe('Fetcher Module', function() {
   // Set timeout for all tests (fetcher can be slow)
@@ -21,6 +21,9 @@ describe('Fetcher Module', function() {
   let httpsUrl;
 
   before(async () => {
+    // Setup TLS certificates for HTTPS testing
+    await setupTestCertificates();
+
     // Create HTTP mock server
     const httpResult = await createMockServer([
       {
@@ -106,22 +109,17 @@ describe('Fetcher Module', function() {
     serverUrl = httpResult.url;
 
     // Create HTTPS mock server
-    try {
-      const httpsResult = await createMockServer([
-        {
-          path: '/success',
-          status: 200,
-          contentType: 'text/html',
-          body: '<html><body>HTTPS success</body></html>',
-        },
-      ], { https: true });
+    const httpsResult = await createMockServer([
+      {
+        path: '/success',
+        status: 200,
+        contentType: 'text/html',
+        body: '<html><body>HTTPS success</body></html>',
+      },
+    ], { https: true });
 
-      httpsServer = httpsResult.server;
-      httpsUrl = httpsResult.url;
-    } catch (error) {
-      console.warn('Could not create HTTPS mock server:', error.message);
-      // Continue without HTTPS tests
-    }
+    httpsServer = httpsResult.server;
+    httpsUrl = httpsResult.url;
   });
 
   after(async () => {
@@ -141,11 +139,6 @@ describe('Fetcher Module', function() {
     });
 
     it('should fetch a successful HTTPS page', async function() {
-      if (!httpsServer) {
-        console.log('Skipping HTTPS test - server not available');
-        return;
-      }
-
       const result = await fetchPage(`${httpsUrl}/success`);
 
       assert.strictEqual(result.statusCode, 200);
