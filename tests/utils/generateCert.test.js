@@ -15,8 +15,10 @@ describe('Certificate Generation', () => {
     assert.ok(cert.includes('-----BEGIN CERTIFICATE-----'));
     assert.ok(cert.includes('-----END CERTIFICATE-----'));
 
-    // Verify cert contains localhost
-    assert.ok(cert.includes('localhost'));
+    // Verify cert contains localhost (using X509 parsing)
+    const crypto = require('crypto');
+    const x509 = new crypto.X509Certificate(cert);
+    assert.ok(x509.subject.includes('localhost'), 'Subject should include localhost');
 
     // Verify cert is not empty
     assert.ok(key.length > 0);
@@ -26,12 +28,16 @@ describe('Certificate Generation', () => {
   it('should generate certificates with correct properties', async () => {
     const { key, cert } = await generateTestCertificate();
 
-    // Verify RSA 2048-bit key (typical PEM length)
-    assert.ok(key.length > 1600 && key.length < 2000, 'Key size suggests 2048-bit RSA');
+    // Verify RSA 2048-bit key
+    const crypto = require('crypto');
+    const x509 = new crypto.X509Certificate(cert);
+    const publicKey = x509.publicKey;
+    assert.strictEqual(publicKey.asymmetricKeyDetails.modulusLength, 2048, 'Should be 2048-bit RSA key');
 
     // Verify certificate structure
-    assert.ok(cert.includes('CN=localhost'), 'Common name should be localhost');
-    assert.ok(cert.includes('Subject Alternative Name'), 'Should have SAN extension');
+    assert.ok(x509.subject.includes('localhost'), 'Common name should be localhost');
+    assert.ok(x509.subjectAltName, 'Should have SAN extension');
+    assert.ok(x509.subjectAltName.includes('localhost'), 'SAN should include localhost');
   });
 
   it('should generate different certificates on each call', async () => {
