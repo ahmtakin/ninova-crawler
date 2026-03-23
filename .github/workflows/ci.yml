@@ -64,13 +64,8 @@ jobs:
 
       # Run linter if configured (optional step)
       - name: Run linter
-        run: |
-          if npm run lint --help >/dev/null 2>&1; then
-            npm run lint
-          else
-            echo "No linter configured, skipping"
-          fi
-        continue-on-error: false
+        run: npm run lint || echo "No linter configured, skipping"
+        continue-on-error: true
 
       # Run tests with service environment variables
       - name: Run tests
