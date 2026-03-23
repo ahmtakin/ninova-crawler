@@ -74,7 +74,7 @@ jobs:
           MONGO_URI: mongodb://localhost:27017/ninova
           REDIS_CACHE_URL: redis://localhost:6379
           NODE_ENV: test
-        run: node --test --timeout 300000 tests/**/*.test.js
+        run: node --test --test-timeout 300000 tests/**/*.test.js
 
       # Upload test results as artifacts if tests fail
       - name: Upload test results on failure
