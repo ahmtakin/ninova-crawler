@@ -17,6 +17,7 @@ const http = require('http');
 const https = require('https');
 const express = require('express');
 const { COLLECTIONS } = require('../src/db/models');
+const { generateTestCertificate } = require('./utils/generateCert');
 
 // ── Configuration ────────────────────────────────────────
 
@@ -305,11 +306,13 @@ function createTestApp(options = {}) {
  * @param {MockRoute[]} routes - Array of route definitions
  * @param {Object} options - Server options
  * @param {boolean} options.https - Use HTTPS instead of HTTP (default: false)
+ * @param {string} options.tlsKey - TLS private key (for HTTPS, defaults to FIXTURES.tls.key)
+ * @param {string} options.tlsCert - TLS certificate (for HTTPS, defaults to FIXTURES.tls.cert)
  * @returns {Promise<{server: http.Server|https.Server, url: string, port: number}>}
  */
 function createMockServer(routes, options = {}) {
   return new Promise((resolve, reject) => {
-    const { https: useHttps = false } = options;
+    const { https: useHttps = false, tlsKey, tlsCert } = options;
 
     // Create Express app for the mock server
     const app = express();
@@ -338,8 +341,8 @@ function createMockServer(routes, options = {}) {
     // Create server
     const server = useHttps
       ? https.createServer({
-          key: FIXTURES.tls.key,
-          cert: FIXTURES.tls.cert,
+          key: tlsKey || FIXTURES.tls.key,
+          cert: tlsCert || FIXTURES.tls.cert,
         }, app)
       : http.createServer(app);
 
@@ -554,6 +557,39 @@ function getSampleHtml(type) {
 }
 
 // ── Test Data Fixtures ────────────────────────────────────
+
+/**
+ * TLS certificate cache for testing.
+ * Initialized once to avoid regenerating certificates for each test.
+ */
+let _tlsCache = null;
+
+/**
+ * Generate and cache TLS certificates for testing.
+ *
+ * This function should be called before accessing FIXTURES.tls to ensure
+ * certificates are generated. The certificates are cached after first
+ * generation to avoid regenerating them for each test.
+ *
+ * @returns {Promise<{key: string, cert: string}>} TLS key and certificate
+ *
+ * @example
+ * ```javascript
+ * // In test setup
+ * await setupTestCertificates();
+ *
+ * // Certificates are now available via FIXTURES.tls
+ * const { key, cert } = FIXTURES.tls;
+ * ```
+ */
+async function setupTestCertificates() {
+  if (_tlsCache) {
+    return _tlsCache;
+  }
+
+  _tlsCache = await generateTestCertificate();
+  return _tlsCache;
+}
 
 /**
  * Common test data fixtures.
@@ -841,41 +877,16 @@ const FIXTURES = Object.freeze({
   },
 
   // ── TLS Certificates for HTTPS Mock Server ──────────────
-  // Self-signed certificates for testing (use only in tests!)
-  // These are minimal valid certificates for localhost HTTPS testing
+  // Dynamically generated certificates for testing.
+  // Call setupTestCertificates() before accessing this property.
 
-  tls: {
-    key: `-----BEGIN RSA PRIVATE KEY-----
-MIIEpAIBAAKCAQEAu1SU1LfVLPHCizpoz16lj/oUKlzLvBSoBBQKCx13k/XmWx8
-B6GOZeaSlSV6JynY0wJmwDEUXLUXAXk2YxGXGhKgklGwhPR4vKe+x4XSTnJ3qNZ
-qQGVmFvZqLQ2JkMWLJKzJKsXJxNVHnQqVZYnqQJDNX5KqV9PKJQV8XH9V8xOvC8
-P5xYx3z8H7vQoL8KxZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqX
-Z8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQ
-qXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8x
-QqXZ8XO8xQqXZ8XO8xQqXZ8XO8wIDAQABAoIBAFQl7pLp3pPPcFq7pNbGYUj1
-YqY2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y
-1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y
-1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y
-1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y
-1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y1Y2Y
------END RSA PRIVATE KEY-----`,
-    cert: `-----BEGIN CERTIFICATE-----
-MIIDXTCCAkWgAwIBAgIJAKL0UG+mRq7ZMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV
-BAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBX
-aWRnaXRzIFB0eSBMdGQwHhcNMjQwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjBF
-MQswCQYDVQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50
-ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
-CgKCAQEAu1SU1LfVLPHCizpoz16lj/oUKlzLvBSoBBQKCx13k/XmWx8B6GOZeaSl
-SV6JynY0wJmwDEUXLUXAXk2YxGXGhKgklGwhPR4vKe+x4XSTnJ3qNZqQGVmFvZq
-LQ2JkMWLJKzJKsXJxNVHnQqVZYnqQJDNX5KqV9PKJQV8XH9V8xOvC8P5xYx3z8H
-7vQoL8KxZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqX
-Z8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqX
-Z8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqX
-Z8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqXZ8XO8xQqX
-Z8XO8xQqXZ8XO8wIDAQABo1AwTjAdBgNVHQ4EFgQUKuTf3H8rJJdDVsL7Q0hQr5
-XYzEwHwYDVR0jBBgwFoAUKuTf3H8rJJdDVsL7Q0hQr5XYzEwDAYDVR0TBAUwAwEB
-/zANBgkqhkiG9w0BAQsFAAOCAQEAXu5KjkKNDW6npCCbKELYJQD9VVVSnC3JjKL
------END CERTIFICATE-----`,
+  get tls() {
+    if (!_tlsCache) {
+      throw new Error(
+        'TLS certificates not initialized. Call setupTestCertificates() before accessing FIXTURES.tls'
+      );
+    }
+    return _tlsCache;
   },
 
   // ── Search Query Fixtures ─────────────────────────────────
@@ -953,25 +964,30 @@ async function selfTest() {
     const value = await redis.get('test_key');
     console.log(`   ✓ Connected to Redis, set/get works: ${value === 'test_value'}`);
 
+    // Test TLS certificate generation
+    console.log('3. Testing TLS certificate generation...');
+    await setupTestCertificates();
+    console.log(`   ✓ TLS certificates generated: ${FIXTURES.tls.key.length} bytes key, ${FIXTURES.tls.cert.length} bytes cert`);
+
     // Test mock server
-    console.log('3. Testing mock server...');
+    console.log('4. Testing mock server...');
     const { server, url } = await createMockServer([
       { path: '/test', status: 200, body: 'Test response' },
     ]);
     console.log(`   ✓ Mock server running on ${url}`);
 
     // Test HTML fixtures
-    console.log('4. Testing HTML fixtures...');
+    console.log('5. Testing HTML fixtures...');
     const html = getSampleHtml('simple');
     console.log(`   ✓ Sample HTML length: ${html.length} chars`);
 
     // Test fixtures
-    console.log('5. Testing fixtures...');
+    console.log('6. Testing fixtures...');
     console.log(`   ✓ Valid URLs: ${FIXTURES.urls.valid.length}`);
     console.log(`   ✓ Stop words: ${FIXTURES.stopWords.size}`);
 
     // Cleanup
-    console.log('\n6. Cleaning up...');
+    console.log('\n7. Cleaning up...');
     await cleanupAll();
     console.log('   ✓ All resources cleaned up');
 
@@ -1018,6 +1034,9 @@ module.exports = {
 
   // Test data fixtures
   FIXTURES,
+
+  // TLS certificate utilities
+  setupTestCertificates,
 
   // General cleanup
   cleanupAll,
