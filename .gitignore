@@ -4,3 +4,4 @@ npm-debug.log*
 .DS_Store
 *.log
 coverage/
+.claude/settings.local.json

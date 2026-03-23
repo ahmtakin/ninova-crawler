@@ -5,6 +5,7 @@
   /* Backgrounds */
   --bg-start: #FFFFFF;
   --bg-end: #F0F8FF;
+  --bg-gradient: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
   --glass-bg: rgba(255, 255, 255, 0.6);
   --glass-border: rgba(255, 255, 255, 0.8);
 
@@ -36,6 +37,50 @@
   --gloss-shine: linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 50%);
 }
 
+/* ── Dark Mode Theme ───────────────────────────────── */
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-start: #0A1628;
+  --bg-end: #1A2738;
+  --bg-gradient: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
+  --glass-bg: rgba(30, 50, 80, 0.6);
+  --glass-border: rgba(100, 150, 200, 0.3);
+
+  /* Gradients - darker, space-themed */
+  --sky-gradient: linear-gradient(180deg, #4A6EA5 0%, #2C4A68 100%);
+  --aqua-gradient: linear-gradient(180deg, #5EA8C0 0%, #3A7A90 100%);
+  --leaf-gradient: linear-gradient(180deg, #7ED321 0%, #5AA015 100%);
+  --sun-gradient: linear-gradient(180deg, #FFB347 0%, #E09020 100%);
+  --rose-gradient: linear-gradient(180deg, #F4676C 0%, #C4454C 100%);
+
+  /* Text */
+  --text: #E4E6EF;
+  --text-muted: #8B8FA3;
+  --text-white: #FFFFFF;
+
+  /* Effects - stronger glows for dark mode */
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(80, 150, 220, 0.3);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+
+  /* Gloss shine - more subtle in dark mode */
+  --gloss-shine: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%);
+}
+
+/* Smooth theme transition */
+header,
+.card,
+.feature-card,
+button,
+input {
+  transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Body background changes immediately (gradients don't transition smoothly) */
+body {
+  transition: color 0.3s ease;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-gradient);
@@ -58,10 +103,20 @@ body::before {
     radial-gradient(circle at 80% 80%, rgba(80, 200, 200, 0.1) 0%, transparent 50%);
   pointer-events: none;
   z-index: -1;
+  transition: background 0.3s ease;
+}
+
+[data-theme="dark"] body::before {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(80, 150, 220, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(60, 140, 180, 0.1) 0%, transparent 50%);
 }
 
 /* ── Header ──────────────────────────────────────── */
 header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   padding: 1.5rem 2rem;
   margin: 1.5rem 2rem 0;
   background: var(--sky-gradient);
@@ -99,6 +154,7 @@ header::after {
 }
 
 header h1 {
+  flex: 1;
   font-size: 1.75rem;
   font-weight: 700;
   background: linear-gradient(135deg, #FFFFFF 0%, #E0F7FA 100%);
@@ -117,7 +173,6 @@ header h1 {
 }
 
 .system-status {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -143,6 +198,72 @@ header h1 {
 
 .status-dot.connected { background: var(--success); box-shadow: 0 0 8px rgba(126, 211, 33, 0.5); }
 .status-dot.disconnected { background: var(--danger); box-shadow: 0 0 8px rgba(244, 103, 108, 0.5); }
+
+/* ── Theme Toggle Button ───────────────────────────── */
+.theme-toggle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--sky-gradient);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow:
+    0 2px 8px rgba(74, 144, 217, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  position: relative;
+  overflow: hidden;
+  margin-left: 1rem;
+}
+
+/* Gloss shine on toggle */
+.theme-toggle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: var(--gloss-shine);
+  border-radius: 50% 50% 0 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.theme-toggle:hover {
+  transform: scale(1.1);
+  box-shadow:
+    0 4px 12px rgba(74, 144, 217, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.theme-toggle:active {
+  transform: scale(1.05);
+}
+
+/* Dark mode active state */
+[data-theme="dark"] .theme-toggle {
+  background: linear-gradient(180deg, #5EA8C0 0%, #3A7A90 100%);
+  border-color: rgba(150, 200, 220, 0.4);
+  box-shadow:
+    0 2px 8px rgba(80, 150, 220, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.theme-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  transition: transform 0.3s ease;
+}
+
+/* Icon animation on toggle */
+.theme-toggle:hover .theme-icon {
+  transform: rotate(20deg) scale(1.1);
+}
 
 /* ── Main Layout ─────────────────────────────────── */
 main {
@@ -376,6 +497,22 @@ input:focus {
   box-shadow:
     0 0 0 3px rgba(74, 144, 217, 0.2),
     inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Dark mode input adjustments */
+[data-theme="dark"] input[type="url"],
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="number"] {
+  border-color: rgba(100, 150, 200, 0.3);
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] input:focus {
+  box-shadow:
+    0 0 0 3px rgba(80, 150, 220, 0.3),
+    inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 input::placeholder {
@@ -718,6 +855,11 @@ button.danger:hover {
   box-shadow: var(--shadow-soft);
 }
 
+/* Dark mode search result adjustments */
+[data-theme="dark"] .search-result {
+  border-color: rgba(100, 150, 200, 0.3);
+}
+
 .search-result-url {
   color: var(--primary);
   font-size: 0.95rem;
@@ -776,6 +918,27 @@ footer {
   overflow: hidden;
   backdrop-filter: blur(10px);
   background: rgba(255, 255, 255, 0.3);
+
+  /* Smooth expand/collapse animation */
+  max-height: 500px;
+  opacity: 1;
+  transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+}
+
+/* Collapsed state - hidden */
+.job-logs.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  border: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Dark mode job logs adjustments */
+[data-theme="dark"] .job-logs {
+  border-color: rgba(100, 150, 200, 0.3);
+  background: rgba(20, 40, 70, 0.4);
 }
 
 .logs-header {
@@ -806,11 +969,21 @@ footer {
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* Dark mode logs container adjustments */
+[data-theme="dark"] .logs-container {
+  background: rgba(20, 40, 70, 0.5);
+}
+
 .log-entry {
   padding: 0.25rem 0.5rem;
   margin-bottom: 0.125rem;
   border-radius: 8px;
   line-height: 1.4;
+}
+
+/* Dark mode log entry adjustments */
+[data-theme="dark"] .log-entry {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .log-time {
@@ -833,14 +1006,29 @@ footer {
   border-left: 3px solid var(--info);
 }
 
+/* Dark mode log info adjustments */
+[data-theme="dark"] .log-info {
+  background: rgba(74, 144, 217, 0.25);
+}
+
 .log-warn {
   background: rgba(255, 179, 71, 0.15);
   border-left: 3px solid var(--warning);
 }
 
+/* Dark mode log warn adjustments */
+[data-theme="dark"] .log-warn {
+  background: rgba(255, 179, 71, 0.25);
+}
+
 .log-error {
   background: rgba(244, 103, 108, 0.15);
   border-left: 3px solid var(--danger);
+}
+
+/* Dark mode log error adjustments */
+[data-theme="dark"] .log-error {
+  background: rgba(244, 103, 108, 0.25);
 }
 
 /* Auto-scroll indicator */

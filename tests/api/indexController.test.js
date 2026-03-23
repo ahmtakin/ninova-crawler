@@ -5,90 +5,27 @@
  * Run: node --test tests/api/indexController.test.js
  */
 
-const { describe, it, before, after, beforeEach, mock } = require('node:test');
+const { describe, it, before, after, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { ObjectId } = require('mongodb');
 const request = require('supertest');
 
-const { setupTestDb, getTestDb, cleanupTestDb, closeTestDb } = require('../setup');
+const { setupTestDb, cleanupTestDb, closeTestDb } = require('../setup');
 const { COLLECTIONS } = require('../../src/db/models');
+const {
+  setupDatabaseMocks,
+  setupCrawlManagerMocks,
+  restoreAllMocks,
+  clearRequireCache
+} = require('../testHelpers');
 
 describe('Index Controller API', () => {
   let db;
   let app;
-  let getDbMock;
+  let allMocks = [];
 
   before(async () => {
     db = await setupTestDb();
-
-    // Mock getDb
-    const mongoModule = require('../../src/db/mongo');
-    getDbMock = mock.method(mongoModule, 'getDb', () => db);
-
-    // Mock the crawlManager to avoid Redis dependency
-    const crawlManagerModule = require('../../src/crawler/crawlManager');
-    mock.method(crawlManagerModule, 'startCrawl', async (origin, depth, config) => {
-      const result = await db.collection(COLLECTIONS.CRAWL_JOBS).insertOne({
-        origin,
-        maxDepth: depth,
-        status: 'queued',
-        config: config || {},
-        stats: {
-          urlsQueued: 1,
-          urlsProcessed: 0,
-          urlsFailed: 0,
-          pagesIndexed: 0,
-          startedAt: null,
-          completedAt: null,
-          lastActivityAt: new Date()
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      return { jobId: result.insertedId.toString() };
-    });
-
-    mock.method(crawlManagerModule, 'getAllJobs', async () => {
-      return await db.collection(COLLECTIONS.CRAWL_JOBS).find().toArray();
-    });
-
-    mock.method(crawlManagerModule, 'getJobStatus', async (jobId) => {
-      return await db.collection(COLLECTIONS.CRAWL_JOBS).findOne({ _id: new ObjectId(jobId) });
-    });
-
-    // Mock pauseJob, resumeJob, cancelJob
-    mock.method(crawlManagerModule, 'pauseJob', async (jobId) => {
-      const result = await db.collection(COLLECTIONS.CRAWL_JOBS).updateOne(
-        { _id: new ObjectId(jobId) },
-        { $set: { status: 'paused', updatedAt: new Date() } }
-      );
-      return result.modifiedCount > 0;
-    });
-
-    mock.method(crawlManagerModule, 'resumeJob', async (jobId) => {
-      const result = await db.collection(COLLECTIONS.CRAWL_JOBS).updateOne(
-        { _id: new ObjectId(jobId) },
-        { $set: { status: 'running', updatedAt: new Date() } }
-      );
-      return result.modifiedCount > 0;
-    });
-
-    mock.method(crawlManagerModule, 'cancelJob', async (jobId) => {
-      const result = await db.collection(COLLECTIONS.CRAWL_JOBS).updateOne(
-        { _id: new ObjectId(jobId) },
-        { $set: { status: 'cancelled', updatedAt: new Date() } }
-      );
-      return result.modifiedCount > 0;
-    });
-
-    // Load Express app with routes
-    const express = require('express');
-    app = express();
-    app.use(express.json());
-
-    // Load routes after mocking
-    const apiRoutes = require('../../src/api/routes');
-    app.use('/api', apiRoutes);
   });
 
   after(async () => {
@@ -97,6 +34,34 @@ describe('Index Controller API', () => {
 
   beforeEach(async () => {
     await cleanupTestDb();
+
+    // Clear require cache for modules that will be mocked
+    // Note: Don't clear mongo/redis as testHelpers needs them
+    clearRequireCache(
+      require.resolve('../../src/crawler/crawlManager'),
+      require.resolve('../../src/api/routes')
+    );
+
+    // Set up database and crawlManager mocks and collect them
+    const dbMocks = setupDatabaseMocks(db);
+    allMocks.push(...dbMocks._allMocks);
+
+    const crawlManagerMocks = setupCrawlManagerMocks(db);
+    allMocks.push(...crawlManagerMocks._allMocks);
+
+    // Create fresh Express app
+    const express = require('express');
+    app = express();
+    app.use(express.json());
+
+    // Load routes after mocks
+    const apiRoutes = require('../../src/api/routes');
+    app.use('/api', apiRoutes);
+  });
+
+  afterEach(() => {
+    restoreAllMocks(...allMocks);
+    allMocks = [];
   });
 
   describe('GET /api/index', () => {

@@ -17,6 +17,9 @@ const jobLogs = new Map(); // jobId -> { logs: [], expanded: false, autoScroll: 
 const logPollingInterval = 2000; // Poll every 2 seconds when expanded
 const logPollers = new Map(); // jobId -> interval ID
 
+// ── Theme State ────────────────────────────────────
+let currentTheme = 'light'; // 'light' or 'dark'
+
 // ── DOM References ───────────────────────────────────
 const crawlForm = document.getElementById('crawl-form');
 const crawlFeedback = document.getElementById('crawl-feedback');
@@ -33,6 +36,9 @@ const crawlerCard = document.getElementById('crawler-card');
 const searchCard = document.getElementById('search-card');
 const crawlerContent = document.getElementById('crawler-content');
 const searchContent = document.getElementById('search-content');
+
+// Theme toggle reference
+const themeToggle = document.getElementById('theme-toggle');
 
 // ── SSE Connection ───────────────────────────────────
 
@@ -99,6 +105,54 @@ function updateSystemStatus(system) {
   }
 }
 
+// ── Theme Switching ──────────────────────────────────
+
+function setTheme(theme) {
+  if (theme === currentTheme) return;
+
+  currentTheme = theme;
+
+  // Set data attribute on html element for CSS selectors
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    themeToggle.querySelector('.theme-icon').textContent = '🌙';
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    themeToggle.querySelector('.theme-icon').textContent = '☀️';
+  }
+
+  // Force reflow to apply background change immediately
+  void document.body.offsetHeight;
+
+  // Save preference to localStorage
+  localStorage.setItem('theme', theme);
+}
+
+function toggleTheme() {
+  setTheme(currentTheme === 'light' ? 'dark' : 'light');
+}
+
+// ── System Preference Detection ─────────────────────
+
+// Detect system theme preference
+function getSystemTheme() {
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark';
+  }
+  return 'light';
+}
+
+// Listen for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  // Only auto-switch if user hasn't manually set a preference
+  if (!localStorage.getItem('theme')) {
+    setTheme(e.matches ? 'dark' : 'light');
+  }
+});
+
+// Theme toggle click handler
+themeToggle.addEventListener('click', toggleTheme);
+
 // ── Feature Panel Switching ──────────────────────────────
 
 function switchFeature(feature) {
@@ -141,9 +195,15 @@ function renderJobs(jobs) {
 
   jobsContainer.innerHTML = html;
 
-  // Auto-scroll expanded log containers
-  document.querySelectorAll('.logs-container[data-auto-scroll="true"]').forEach(container => {
-    container.scrollTop = container.scrollHeight;
+  // Setup scroll detection and initial scroll for expanded logs
+  jobs.forEach(job => {
+    const state = jobLogs.get(job._id);
+    if (state && state.expanded) {
+      updateJobLogs(job._id);
+      if (!state.scrollDetectionSetup) {
+        setTimeout(() => setupLogScrollDetection(job._id), 100);
+      }
+    }
   });
 }
 
@@ -155,7 +215,7 @@ async function fetchJobLogs(jobId) {
     const data = await response.json();
 
     if (!jobLogs.has(jobId)) {
-      jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true });
+      jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true, userScrolled: false, scrollDetectionSetup: false });
     }
 
     const jobLogState = jobLogs.get(jobId);
@@ -170,22 +230,38 @@ async function fetchJobLogs(jobId) {
 
 function toggleLogs(jobId) {
   if (!jobLogs.has(jobId)) {
-    jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true });
+    jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true, userScrolled: false, scrollDetectionSetup: false });
   }
 
   const state = jobLogs.get(jobId);
   state.expanded = !state.expanded;
 
+  // Find existing logs container
+  const logsContainer = document.querySelector(`[data-job-logs="${jobId}"]`);
+
   if (state.expanded) {
-    // Start polling
-    fetchJobLogs(jobId).then(() => renderJobs(currentJobs));
+    // Reset userScrolled when opening logs (re-enable auto-scroll until user scrolls)
+    state.userScrolled = false;
+
+    // Expand logs
+    if (logsContainer) {
+      logsContainer.classList.remove('collapsed');
+      updateJobLogs(jobId);
+    } else {
+      // First time opening - need to render the logs section
+      fetchJobLogs(jobId).then(() => {
+        renderJobs(currentJobs);
+        setTimeout(() => setupLogScrollDetection(jobId), 100);
+      });
+    }
     startLogPoller(jobId);
   } else {
-    // Stop polling
+    // Collapse logs
+    if (logsContainer) {
+      logsContainer.classList.add('collapsed');
+    }
     stopLogPoller(jobId);
   }
-
-  renderJobs(currentJobs);
 }
 
 function startLogPoller(jobId) {
@@ -193,7 +269,7 @@ function startLogPoller(jobId) {
 
   const intervalId = setInterval(async () => {
     await fetchJobLogs(jobId);
-    renderJobs(currentJobs);
+    updateJobLogs(jobId); // Only update logs, not entire job cards
   }, logPollingInterval);
 
   logPollers.set(jobId, intervalId);
@@ -208,12 +284,75 @@ function stopLogPoller(jobId) {
 
 function toggleAutoScroll(jobId) {
   if (!jobLogs.has(jobId)) {
-    jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true });
+    jobLogs.set(jobId, { logs: [], expanded: false, autoScroll: true, userScrolled: false, scrollDetectionSetup: false });
   }
 
   const state = jobLogs.get(jobId);
   state.autoScroll = !state.autoScroll;
-  renderJobs(currentJobs);
+
+  // Update just the button text, not entire DOM
+  const toggleBtn = document.querySelector(`[data-autoscroll-toggle="${jobId}"]`);
+  if (toggleBtn) {
+    toggleBtn.textContent = state.autoScroll ? 'Auto-scroll: On' : 'Auto-scroll: Off';
+  }
+}
+
+// ── Log Scroll Detection ─────────────────────────────
+function setupLogScrollDetection(jobId) {
+  const logsContainer = document.querySelector(`[data-job-logs="${jobId}"] .logs-container`);
+  if (!logsContainer) return;
+
+  const state = jobLogs.get(jobId);
+  if (!state || state.scrollDetectionSetup) return;
+
+  logsContainer.addEventListener('scroll', () => {
+    const currentState = jobLogs.get(jobId);
+    if (!currentState) return;
+
+    // Mark user as manually scrolled - this stays true until logs are closed
+    currentState.userScrolled = true;
+  });
+
+  state.scrollDetectionSetup = true;
+}
+
+// ── Update Job Logs (targeted update, no full rebuild) ──
+function updateJobLogs(jobId) {
+  const state = jobLogs.get(jobId);
+  if (!state || !state.expanded) return;
+
+  const logsContainer = document.querySelector(`[data-job-logs="${jobId}"] .logs-container`);
+  if (!logsContainer) return;
+
+  // Build new logs HTML
+  const newLogsHtml = state.logs.length === 0
+    ? '<div class="log-entry log-info">Waiting for logs...</div>'
+    : state.logs.map(log => buildLogEntry(log)).join('');
+
+  // Check if user was at bottom BEFORE updating
+  const wasAtBottom = logsContainer.scrollTop + logsContainer.clientHeight >= logsContainer.scrollHeight - 10;
+
+  // Save current scroll position BEFORE innerHTML replacement
+  const currentScrollTop = logsContainer.scrollTop;
+
+  // Use requestAnimationFrame to prevent visual flicker
+  requestAnimationFrame(() => {
+    // Update content
+    logsContainer.innerHTML = newLogsHtml;
+
+    // Decide on scroll behavior
+    const shouldAutoScroll = state.autoScroll && (!state.userScrolled || wasAtBottom);
+
+    if (shouldAutoScroll) {
+      // Auto-scroll to bottom
+      requestAnimationFrame(() => {
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+      });
+    } else {
+      // Preserve user's scroll position
+      logsContainer.scrollTop = currentScrollTop;
+    }
+  });
 }
 
 function buildLogEntry(log) {
@@ -253,6 +392,9 @@ function buildJobCard(job) {
   const isCancelled = job.status === 'cancelled';
   const isFailed = job.status === 'failed';
 
+  // For completed jobs, show 100% progress
+  const displayProgress = isCompleted ? 100 : progress;
+
   const queueUtilization = config.maxQueueDepth ? (urlsQueued / config.maxQueueDepth) * 100 : 0;
   const showBackPressureWarning = isRunning && queueUtilization > 80;
 
@@ -285,7 +427,7 @@ function buildJobCard(job) {
       </div>
 
       <div class="progress-bar">
-        <div class="progress-fill ${showBackPressureWarning ? 'throttled' : ''}" style="width: ${progress}%"></div>
+        <div class="progress-fill ${showBackPressureWarning ? 'throttled' : ''}" style="width: ${displayProgress}%"></div>
       </div>
 
       ${showBackPressureWarning ? `<div class="backpressure-warning">Queue depth at capacity: ${formatNumber(urlsQueued)} / ${formatNumber(config.maxQueueDepth)}</div>` : ''}
@@ -520,6 +662,13 @@ function formatNumber(n) {
 // ── Initialize ───────────────────────────────────────
 // Set default feature panel
 switchFeature('crawler');
+
+// ── Initialize Theme ───────────────────────────────────
+// Priority: localStorage > system preference > default (light)
+const savedTheme = localStorage.getItem('theme');
+const systemTheme = getSystemTheme();
+const initialTheme = savedTheme || systemTheme;
+setTheme(initialTheme);
 
 connectSSE();
 
