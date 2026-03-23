@@ -1,5 +1,7 @@
 # Ninova — Web Crawler & Search Engine
 
+[![CI](https://github.com/ahmtakin/ninova-crawler/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmtakin/ninova-crawler/actions/workflows/ci.yml)
+
 A self-contained web crawler and real-time search engine built with Node.js, MongoDB, and Redis. Crawl websites to a configurable depth, build a searchable word index, and query results — all through a live dashboard.
 
 ## Quick Start
