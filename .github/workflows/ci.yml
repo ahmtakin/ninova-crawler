@@ -1,0 +1,93 @@
+# GitHub Actions CI Workflow
+# Runs tests on every push and pull request
+
+name: CI
+
+# Trigger the workflow on push and pull request events
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:  # Allow manual triggering from GitHub UI
+
+# Prevent multiple workflow runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    # Service containers for MongoDB and Redis
+    # GitHub Actions waits for services to be healthy before starting steps
+    services:
+      mongo:
+        image: mongo:7
+        env:
+          MONGO_INITDB_DATABASE: ninova
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval '1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Setup Node.js with npm caching for faster installs
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'  # Uses latest Node.js 20.x release
+          cache: 'npm'        # Caches node_modules for faster subsequent runs
+
+      # Install dependencies using npm ci (clean, reproducible installs)
+      - name: Install dependencies
+        run: npm ci
+
+      # Run linter if configured (optional step)
+      - name: Run linter
+        run: |
+          if npm run lint --help >/dev/null 2>&1; then
+            npm run lint
+          else
+            echo "No linter configured, skipping"
+          fi
+        continue-on-error: false
+
+      # Run tests with service environment variables
+      - name: Run tests
+        env:
+          MONGO_URI: mongodb://localhost:27017/ninova
+          REDIS_CACHE_URL: redis://localhost:6379
+          NODE_ENV: test
+        run: npm test
+
+      # Upload test results as artifacts if tests fail
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.sha }}
+          path: |
+            test-results/
+            coverage/
+          retention-days: 7
+        continue-on-error: true
